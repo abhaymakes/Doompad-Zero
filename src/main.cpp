@@ -11,6 +11,8 @@
 // Menus
 #include "menus/settings/settings.h"
 #include "menus/about/about.h"
+#include "menus/wifi/wifi_ui.h"
+#include "menus/wifi/wifi_manager.h"
 
 #define SCREEN_WIDTH 128
 #define SCREEN_HEIGHT 64
@@ -29,7 +31,8 @@ enum class Screen
 {
     MainMenu,
     Settings,
-    About
+    About,
+    WiFi
 };
 
 Screen currentScreen = Screen::MainMenu;
@@ -46,6 +49,11 @@ void openAbout()
     currentScreen = Screen::About;
 }
 
+void openWiFi()
+{
+    currentScreen = Screen::WiFi;
+}
+
 // Grid items use their own bitmap pointers and labels.
 MenuItem mainItems[] = {
     {"Games",
@@ -60,12 +68,13 @@ MenuItem mainItems[] = {
      epd_bitmap_settings},
     {"TV",
      MenuItemType::Action,
-     nullptr, nullptr, nullptr,
+     openWiFi, nullptr, nullptr,
      0, 0, nullptr, 0,
      epd_bitmap_tv},
     {"WiFi",
      MenuItemType::Action,
-     nullptr, nullptr, nullptr,
+     openWiFi,
+     nullptr, nullptr,
      0, 0, nullptr, 0,
      epd_bitmap_wifi},
     {"About",
@@ -85,6 +94,15 @@ constexpr uint8_t MAIN_ITEM_COUNT =
 
 void setup()
 {
+    Serial.begin(115200);
+    delay(1000);
+
+    Serial.println();
+    Serial.println("========== DOOMPAD ZERO BOOT ==========");
+    Serial.println("[DEBUG] Serial output is working");
+    Serial.printf("[DEBUG] Chip model: %s\n", ESP.getChipModel());
+    Serial.printf("[DEBUG] Free heap: %u bytes\n",
+                  (unsigned int)ESP.getFreeHeap());
     Wire.begin(OLED_SDA, OLED_SCL);
 
     if (!display.begin(
@@ -109,45 +127,86 @@ void setup()
     mainMenu->draw();
 }
 
-
 void loop()
 {
+    Input::update();
+    WifiManager::update();
     static Screen previousScreen = Screen::MainMenu;
 
-    switch (currentScreen) {
-        case Screen::MainMenu:
-            mainMenu->update();
-            break;
+    switch (currentScreen)
+    {
+    case Screen::MainMenu:
+        mainMenu->update();
+        break;
 
-        case Screen::Settings:
-            settingsUpdate();
+    case Screen::Settings:
+        settingsUpdate();
 
-            if (settingsBackRequested()) {
-                currentScreen = Screen::MainMenu;
-            }
-            break;
+        if (settingsBackRequested())
+        {
+            currentScreen = Screen::MainMenu;
+        }
+        break;
 
-        case Screen::About:
-            aboutUpdate();
+    case Screen::About:
+        aboutUpdate();
 
-            if (aboutBackRequested()) {
-                currentScreen = Screen::MainMenu;
-            }
-            break;
+        if (aboutBackRequested())
+        {
+            currentScreen = Screen::MainMenu;
+        }
+        break;
+
+    case Screen::WiFi:
+        WifiUI::update();
+
+        if (WifiUI::backRequested())
+        {
+            currentScreen = Screen::MainMenu;
+        }
+        break;
     }
 
-    // Initialize and draw screens only when entering them.
-    if (currentScreen != previousScreen) {
-        if (currentScreen == Screen::Settings) {
+    // Initialize screens when entering them.
+    if (currentScreen != previousScreen)
+    {
+        if (currentScreen == Screen::Settings)
+        {
             settingsBegin(display);
         }
-        else if (currentScreen == Screen::About) {
+        else if (currentScreen == Screen::About)
+        {
             aboutBegin(display);
         }
-        else if (currentScreen == Screen::MainMenu) {
+        else if (currentScreen == Screen::WiFi)
+        {
+            WifiUI::begin(display);
+        }
+        else if (currentScreen == Screen::MainMenu)
+        {
             mainMenu->draw();
         }
 
         previousScreen = currentScreen;
+    }
+
+    // Draw the active screen.
+    switch (currentScreen)
+    {
+    case Screen::MainMenu:
+        // Your existing Menu update/draw behavior.
+        break;
+
+    case Screen::Settings:
+        settingsDraw();
+        break;
+
+    case Screen::About:
+        aboutDraw();
+        break;
+
+    case Screen::WiFi:
+        WifiUI::draw();
+        break;
     }
 }

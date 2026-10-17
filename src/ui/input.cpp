@@ -1,5 +1,7 @@
-
 #include "input.h"
+#include <Arduino.h>
+#include <stdint.h>
+
 
 namespace {
 
@@ -9,15 +11,18 @@ constexpr uint8_t PIN_SELECT = 2;
 constexpr uint8_t PIN_LEFT   = 3;
 constexpr uint8_t PIN_RIGHT  = 4;
 
-constexpr uint32_t DEBOUNCE_MS = 35;
+constexpr uint32_t DEBOUNCE_MS   = 35;
 constexpr uint32_t LONG_PRESS_MS = 600;
 
 struct Button {
     uint8_t pin;
+
     bool rawReading;
     bool stablePressed;
+
     uint32_t lastRawChange;
     uint32_t pressedAt;
+
     bool longFired;
     bool pressPending;
     bool shortPending;
@@ -32,45 +37,53 @@ Button buttons[] = {
     {PIN_RIGHT,  false, false, 0, 0, false, false, false, false}
 };
 
-void updateButton(Button &button)
+void updateButton(Button& button, uint32_t now)
 {
-    uint32_t now = millis();
-    bool reading = digitalRead(button.pin) == LOW;
+    // INPUT_PULLUP means LOW = physically pressed.
+    const bool reading = digitalRead(button.pin) == LOW;
 
     if (reading != button.rawReading) {
         button.rawReading = reading;
         button.lastRawChange = now;
     }
 
-    if (now - button.lastRawChange >= DEBOUNCE_MS &&
+    // Accept a new state only after it has remained stable.
+    if ((uint32_t)(now - button.lastRawChange) >= DEBOUNCE_MS &&
         button.rawReading != button.stablePressed) {
 
         button.stablePressed = button.rawReading;
 
         if (button.stablePressed) {
+            // Debounced press.
             button.pressedAt = now;
             button.longFired = false;
             button.pressPending = true;
         } else {
+            // Debounced release. A long press must not also
+            // generate a short-press event.
             if (!button.longFired) {
                 button.shortPending = true;
             }
         }
     }
 
+    // Fire the long-press event once, while still held.
     if (button.stablePressed &&
         !button.longFired &&
-        now - button.pressedAt >= LONG_PRESS_MS) {
+        (uint32_t)(now - button.pressedAt) >= LONG_PRESS_MS) {
 
         button.longFired = true;
         button.longPending = true;
+
+        // Suppress any not-yet-consumed press event for UP.
+        if (button.pin == PIN_UP) {
+            button.pressPending = false;
+        }
     }
 }
 
-bool consumePress(Button &button)
+bool consumePress(Button& button)
 {
-    updateButton(button);
-
     if (!button.pressPending) {
         return false;
     }
@@ -79,10 +92,8 @@ bool consumePress(Button &button)
     return true;
 }
 
-bool consumeShortPress(Button &button)
+bool consumeShortPress(Button& button)
 {
-    updateButton(button);
-
     if (!button.shortPending) {
         return false;
     }
@@ -91,10 +102,8 @@ bool consumeShortPress(Button &button)
     return true;
 }
 
-bool consumeLongPress(Button &button)
+bool consumeLongPress(Button& button)
 {
-    updateButton(button);
-
     if (!button.longPending) {
         return false;
     }
@@ -109,18 +118,34 @@ namespace Input {
 
 void begin()
 {
-    for (Button &button : buttons) {
+    const uint32_t now = millis();
+
+    for (Button& button : buttons) {
         pinMode(button.pin, INPUT_PULLUP);
 
-        button.rawReading = false;
-        button.stablePressed = false;
-        button.lastRawChange = millis();
-        button.pressedAt = 0;
+        // Initialize from the actual pin state to avoid a
+        // false press event immediately after startup.
+        const bool pressed = digitalRead(button.pin) == LOW;
+
+        button.rawReading = pressed;
+        button.stablePressed = pressed;
+        button.lastRawChange = now;
+        button.pressedAt = pressed ? now : 0;
 
         button.longFired = false;
         button.pressPending = false;
         button.shortPending = false;
         button.longPending = false;
+    }
+}
+
+// Call exactly once per main-loop iteration.
+void update()
+{
+    const uint32_t now = millis();
+
+    for (Button& button : buttons) {
+        updateButton(button, now);
     }
 }
 
@@ -131,7 +156,7 @@ bool down()
 
 bool up()
 {
-    // UP is reported on release if it wasn't a long press.
+    // Short UP is emitted on release.
     return consumeShortPress(buttons[1]);
 }
 
@@ -152,7 +177,8 @@ bool right()
 
 bool menuBack()
 {
+    // Long UP is emitted once after 600 ms.
     return consumeLongPress(buttons[1]);
 }
 
-}
+} // namespace Input

@@ -5,8 +5,8 @@
 
 namespace WifiManager {
 
-    constexpr uint8_t TX_POWER_DBM = 7;
-    constexpr uint32_t SCAN_DURATION_MS = 10000;
+    constexpr uint8_t TX_POWER_DBM = 10;
+    constexpr uint32_t SCAN_DURATION_MS = 5000;
     constexpr uint32_t CONNECT_TIMEOUT_MS = 20000;
     constexpr uint8_t MAX_NETWORKS = 30;
 
