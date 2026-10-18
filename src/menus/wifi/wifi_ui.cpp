@@ -1,5 +1,5 @@
 #include "wifi_ui.h"
-
+#include "deauth/deauth_ui.h"
 #include "wifi_manager.h"
 #include "../../ui/input.h"
 #include "../../ui/text_keyboard.h"
@@ -15,7 +15,8 @@ namespace WifiUI
         Networks,
         Password,
         Connecting,
-        Result
+        Result,
+        Deauth
     };
 
     static Adafruit_SSD1306 *screen = nullptr;
@@ -33,7 +34,7 @@ namespace WifiUI
     static String statusMessage;
     static uint32_t resultStartedAt = 0;
 
-    static constexpr uint8_t MENU_ITEMS = 2;
+    static constexpr uint8_t MENU_ITEMS = 3;
     static constexpr uint8_t VISIBLE_NETWORKS = 5;
 
     static void goBack()
@@ -46,6 +47,10 @@ namespace WifiUI
         case Page::Manage:
         case Page::Scan:
         case Page::Networks:
+        case Page::Deauth:
+            DeauthPage::stop();
+            page = Page::Menu;
+            break;
         case Page::Result:
             page = Page::Menu;
             break;
@@ -53,7 +58,7 @@ namespace WifiUI
             page = Page::Networks;
             keyboardStarted = false;
             break;
-        case Page::Connecting:
+        Connecting:
             // Keep the connection attempt running, but let the user leave this view.
             page = Page::Result;
             statusMessage = "Connection pending";
@@ -155,16 +160,22 @@ namespace WifiUI
 
         if (Input::select())
         {
+            Serial.printf("[wifi] menuSelection=%u\n", menuSelection);
             if (menuSelection == 0)
             {
                 page = Page::Manage;
             }
-            else
+            else if (menuSelection == 1)
             {
                 networkSelection = 0;
                 networkScroll = 0;
                 WifiManager::startScan();
                 page = Page::Scan;
+            }
+            else
+            {
+                DeauthPage::begin(*screen);
+                page = Page::Deauth;
             }
         }
     }
@@ -387,6 +398,13 @@ namespace WifiUI
         case Page::Result:
             updateResult();
             break;
+        case Page::Deauth:
+            DeauthPage::update();
+            if (DeauthPage::backRequested())
+            {
+                page = Page::Menu;
+            }
+            break;
         }
     }
 
@@ -399,6 +417,12 @@ namespace WifiUI
         if (page == Page::Password && keyboardStarted)
             return;
 
+        if (page == Page::Deauth)
+        {
+            DeauthPage::draw();
+            return;
+        }
+
         prepareFrame();
 
         switch (page)
@@ -406,6 +430,7 @@ namespace WifiUI
         case Page::Menu:
             drawMenuRow(5, "Manage", menuSelection == 0, 12);
             drawMenuRow(21, "Connect Wi-Fi", menuSelection == 1, 12);
+            drawMenuRow(37, "Deauth", menuSelection == 2, 12);
             break;
 
         case Page::Manage:
