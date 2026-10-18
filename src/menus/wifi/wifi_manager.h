@@ -22,6 +22,7 @@ namespace WifiManager {
 
     struct AccessPoint {
         String ssid;
+        uint8_t bssid[6];
         int32_t rssi;
         uint8_t channel;
         wifi_auth_mode_t security;
