@@ -2,6 +2,8 @@
 
 #include "../../ui/menu_engine.h"
 #include "../../ui/input.h"
+#include "time/time_manager.h"
+#include "time/time_manager_ui.h"
 
 namespace
 {
@@ -21,6 +23,14 @@ namespace
     Menu *settingsMenu = nullptr;
 
     bool backRequested = false;
+
+    enum class SettingsPage : uint8_t
+    {
+        Menu,
+        Time
+    };
+
+    SettingsPage currentPage = SettingsPage::Menu;
 
     // ------------------------------------------------------------
     // Brightness options
@@ -90,6 +100,16 @@ namespace
     // Settings menu
     // ------------------------------------------------------------
 
+    void openTime()
+    {
+        currentPage = SettingsPage::Time;
+
+        if (display)
+        {
+            TimeManagerUI::begin(*display);
+        }
+    }
+
     MenuItem settingsItems[] = {
 
         {"Brightness",
@@ -141,6 +161,16 @@ namespace
          nullptr,
          0},
 
+        {"Time",
+         MenuItemType::Action,
+         openTime,
+         nullptr,
+         nullptr,
+         0,
+         0,
+         nullptr,
+         0},
+
         {"Reset Settings",
          MenuItemType::Action,
          resetSettings,
@@ -165,21 +195,23 @@ void settingsBegin(Adafruit_SSD1306 &oled)
 
     display = &oled;
 
-    if (!settingsMenu) {
+    currentPage = SettingsPage::Menu;
+
+    if (!settingsMenu)
+    {
         settingsMenu = new Menu(
             *display,
             "Settings",
             settingsItems,
-            SETTINGS_COUNT
-        );
+            SETTINGS_COUNT);
     }
-    
+
     settingsMenu->resetEditMode();
-    
+
     displaySleeping = false;
     lastActivity = millis();
     backRequested = false;
-    
+
     applySettings();
     settingsMenu->draw();
 }
@@ -193,7 +225,28 @@ void settingsUpdate()
 
     if (Input::menuBack())
     {
-        backRequested = true;
+        if (currentPage == SettingsPage::Time)
+        {
+            currentPage = SettingsPage::Menu;
+            settingsMenu->draw();
+        }
+        else
+        {
+            backRequested = true;
+        }
+        return;
+    }
+
+    if (currentPage == SettingsPage::Time)
+    {
+        if (Input::menuBack())
+        {
+            currentPage = SettingsPage::Menu;
+            settingsMenu->draw();
+            return;
+        }
+
+        TimeManagerUI::update();
         return;
     }
 
@@ -201,10 +254,10 @@ void settingsUpdate()
     {
 
         if (Input::left() ||
-        Input::right() ||
-        Input::up() ||
-        Input::down() ||
-        Input::select())
+            Input::right() ||
+            Input::up() ||
+            Input::down() ||
+            Input::select())
         {
 
             displaySleeping = false;
@@ -265,6 +318,12 @@ void settingsDraw()
 
     if (!settingsMenu)
     {
+        return;
+    }
+
+    if (currentPage == SettingsPage::Time) {
+        TimeManager::update();
+        TimeManagerUI::draw();
         return;
     }
 
