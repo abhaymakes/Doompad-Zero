@@ -53,5 +53,7 @@ namespace DeauthMonitor {
     void setReason(uint16_t reason);
     void setBroadcast(bool broadcast);
     bool broadcast();
+    void printRxDiagnostics();
+    bool runTxDiagnostic();
 
 }

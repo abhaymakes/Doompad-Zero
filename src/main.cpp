@@ -13,6 +13,8 @@
 #include "menus/about/about.h"
 #include "menus/wifi/wifi_ui.h"
 #include "menus/wifi/wifi_manager.h"
+#include "menus/wifi/deauth/deauth_monitor.h"
+#include "menus/wifi/deauth/deauth_monitor.h"
 
 #define SCREEN_WIDTH 128
 #define SCREEN_HEIGHT 64
@@ -125,12 +127,15 @@ void setup()
         MenuLayout::IconGrid);
 
     mainMenu->draw();
+
+    DeauthMonitor::runTxDiagnostic();
 }
 
 void loop()
 {
     Input::update();
     WifiManager::update();
+
     static Screen previousScreen = Screen::MainMenu;
 
     switch (currentScreen)
@@ -189,7 +194,12 @@ void loop()
 
         previousScreen = currentScreen;
     }
-
+    static unsigned long lastRxPrint = 0;
+    if (millis() - lastRxPrint >= 2000)
+    {
+        lastRxPrint = millis();
+        DeauthMonitor::printRxDiagnostics();
+    }
     // Draw the active screen.
     switch (currentScreen)
     {

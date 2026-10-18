@@ -336,7 +336,7 @@ namespace DeauthPage
 
             DeauthMonitor::start(selectedSsid, selectedBssid,
                                  ap->channel, static_cast<int8_t>(ap->rssi));
-
+            DeauthMonitor::setTransmit(true);
             page = Page::Status;
             dirty = true;
         }
